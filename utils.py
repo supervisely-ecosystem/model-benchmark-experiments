@@ -85,11 +85,11 @@ def get_counts_and_scores(cocoEval: COCOeval, cat_id: int, t: int):
     return tps, fps, scores, n_positives
 
 
-def show_gt_image(img_id, cocoGt: COCO):
-    ann_ids = cocoGt.getAnnIds(img_id)
+def show_gt_image(img_id, cocoGt: COCO, prefix="./data/COCO2017/img/val2017/", draw_label=True):
+    ann_ids = cocoGt.getAnnIds([img_id])
     anns = cocoGt.loadAnns(ann_ids)
-    img = cocoGt.loadImgs(img_id)[0]
-    im = Image.open(img["file_name"])
+    img = cocoGt.loadImgs([img_id])[0]
+    im = Image.open(prefix+img["file_name"])
     for ann in anns:
         bbox = ann["bbox"]
         x, y, w, h = bbox
@@ -98,15 +98,16 @@ def show_gt_image(img_id, cocoGt: COCO):
         # class name
         cat_id = ann["category_id"]
         class_name = cocoGt.cats[cat_id]["name"]
-        draw.text((x, y), class_name, fill="black", font=font)
+        if draw_label:
+            draw.text((x, y), class_name, fill="black", font=font)
     return im
 
 
-def show_pred_image(img_id, cocoDt: COCO):
-    ann_ids = cocoDt.getAnnIds(img_id)
+def show_pred_image(img_id, cocoDt: COCO, prefix="./data/COCO2017/img/val2017/", draw_label=True):
+    ann_ids = cocoDt.getAnnIds([img_id])
     anns = cocoDt.loadAnns(ann_ids)
-    img = cocoDt.loadImgs(img_id)[0]
-    im = Image.open(img["file_name"])
+    img = cocoDt.loadImgs([img_id])[0]
+    im = Image.open(prefix+img["file_name"])
     for ann in anns:
         bbox = ann["bbox"]
         x, y, w, h = bbox
@@ -115,5 +116,6 @@ def show_pred_image(img_id, cocoDt: COCO):
         # class name
         cat_id = ann["category_id"]
         class_name = cocoDt.cats[cat_id]["name"]
-        draw.text((x, y), class_name, fill="black", font=font)
+        if draw_label:
+            draw.text((x, y), class_name, fill="black", font=font)
     return im
