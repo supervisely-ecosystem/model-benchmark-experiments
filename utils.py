@@ -85,8 +85,10 @@ def get_counts_and_scores(cocoEval: COCOeval, cat_id: int, t: int):
     return tps, fps, scores, n_positives
 
 
-def show_gt_image(img_id, cocoGt: COCO, prefix="./data/COCO2017/img/val2017/", draw_label=True):
+def show_gt_image(img_id, cocoGt: COCO, prefix="./data/COCO2017/img/val2017/", draw_label=True, filter_ann_ids=None):
     ann_ids = cocoGt.getAnnIds([img_id])
+    if filter_ann_ids is not None:
+        ann_ids = list(set(ann_ids) & set(filter_ann_ids))
     anns = cocoGt.loadAnns(ann_ids)
     img = cocoGt.loadImgs([img_id])[0]
     im = Image.open(prefix+img["file_name"])
@@ -103,8 +105,10 @@ def show_gt_image(img_id, cocoGt: COCO, prefix="./data/COCO2017/img/val2017/", d
     return im
 
 
-def show_pred_image(img_id, cocoDt: COCO, prefix="./data/COCO2017/img/val2017/", draw_label=True):
+def show_pred_image(img_id, cocoDt: COCO, prefix="./data/COCO2017/img/val2017/", draw_label=True, filter_ann_ids=None):
     ann_ids = cocoDt.getAnnIds([img_id])
+    if filter_ann_ids is not None:
+        ann_ids = list(set(ann_ids) & set(filter_ann_ids))
     anns = cocoDt.loadAnns(ann_ids)
     img = cocoDt.loadImgs([img_id])[0]
     im = Image.open(prefix+img["file_name"])
