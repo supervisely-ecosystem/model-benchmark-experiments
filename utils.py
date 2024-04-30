@@ -25,10 +25,22 @@ def get_counts(cocoEval: COCOeval):
     false_negatives = np.zeros((K, N, T))
 
     for i, eval_img in enumerate(eval_imgs):
-        catId = eval_img['category_id']        
-        true_positives[catId, i] = np.sum(eval_img['dtMatches'] > 0, axis=1)
-        false_positives[catId, i] = np.sum(eval_img['dtMatches'] == 0, axis=1)
-        false_negatives[catId, i] = np.sum(eval_img['gtMatches'] == 0, axis=1)
+        catId = eval_img['category_id']
+        dt_matches = eval_img['dtMatches']
+        gt_matches = eval_img['gtMatches']
+
+        # Ignore
+        if np.any(eval_img['gtIgnore']):
+            dt_matches = eval_img['dtMatches'].copy()
+            dt_matches[eval_img['dtIgnore']] = -1
+
+            gt_matches = eval_img['gtMatches'].copy()
+            gt_ignore_mask = eval_img['gtIgnore'][None,].repeat(T, axis=0).astype(bool)
+            gt_matches[gt_ignore_mask] = -1
+
+        true_positives[catId, i] = np.sum(dt_matches > 0, axis=1)
+        false_positives[catId, i] = np.sum(dt_matches == 0, axis=1)
+        false_negatives[catId, i] = np.sum(gt_matches == 0, axis=1)
 
     return true_positives[cat_ids], false_positives[cat_ids], false_negatives[cat_ids]
 
