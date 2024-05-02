@@ -1,0 +1,6 @@
+metrics in JSON:
+- overall: mAP, Precision, Recall, IoU, Classification Accuracy, Reliability Score
+- prediction_gallery
+- recall: score, per-class, instances
+- precision: score, per-class, instances
+- localization: iou, iou_hist
