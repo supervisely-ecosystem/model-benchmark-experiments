@@ -21,13 +21,13 @@ from pycocotools.coco import COCO
 
 
 # N x k
-# k = img_id, value, dt_id, gt_id
+# k = img_id, value, gt_id, dt_id
 def collect(inds_sorted, values, idx2imgId, topk=100):
     return [[idx2imgId[idx], values[idx], -1, -1] for idx in inds_sorted[:topk]]
 
 def collect_per_instance(inds_sorted, matches, key, topk=100):
     matches_sorted = [matches[idx] for idx in inds_sorted[:topk]]
-    return [[m["image_id"], m[key], m["dt_id"] or -1, m["gt_id"] or -1] for m in matches_sorted]
+    return [[m["image_id"], m[key], m["gt_id"] or -1, m["dt_id"] or -1] for m in matches_sorted]
 
 
 def get_per_image(matches, cocoGt: COCO, cat_ids_rare):
