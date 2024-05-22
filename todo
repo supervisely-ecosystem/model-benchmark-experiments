@@ -1,6 +1,2 @@
-metrics in JSON:
-- overall: mAP, Precision, Recall, IoU, Classification Accuracy, Reliability Score
-- prediction_gallery
-- recall: score, per-class, instances
-- precision: score, per-class, instances
-- localization: iou, iou_hist
+- Test on different datasets and models
+- Add support for clicking on charts: Link sly_image_ids + sly_object_ids to the dataset
