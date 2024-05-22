@@ -39,7 +39,7 @@ def get_outcomes_per_image(matches, cocoGt: COCO):
 class MetricProvider:
     def __init__(self, eval_data: dict, cocoGt: COCO, cocoDt: COCO):
 
-        self.cocGt = cocoGt
+        self.cocoGt = cocoGt
 
         # eval_data
         self.true_positives = eval_data["true_positives"]
