@@ -200,6 +200,7 @@ class MetricProvider:
 class CalibrationMetrics:
     def __init__(self, tp_matches, fp_matches, fn_matches, iouThrs):
         self.iouThrs = iouThrs
+        eps = np.spacing(1)
         scores = []
         classes = []
         iou_idxs = []
@@ -207,7 +208,7 @@ class CalibrationMetrics:
         per_class_count = defaultdict(int)
         for m in p_matches:
             if m['type'] == "TP" and m['iou'] is not None:
-                iou_idx = np.searchsorted(iouThrs, m['iou'])
+                iou_idx = np.searchsorted(iouThrs, m['iou']+eps)
                 iou_idxs.append(iou_idx)
                 assert iou_idx > 0
             else:
