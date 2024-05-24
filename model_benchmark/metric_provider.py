@@ -1,4 +1,5 @@
 import warnings
+from copy import deepcopy
 from collections import defaultdict
 import numpy as np
 import pandas as pd
@@ -37,8 +38,27 @@ def get_outcomes_per_image(matches, cocoGt: COCO):
     return img_ids, outcomes_per_image
 
 
+def filter_by_conf(matches: list, conf: float):
+    matches_filtered = []
+    for m in matches:
+        if m['score'] is not None and m['score'] < conf:
+            if m['type'] == 'TP':
+                # TP becomes FN
+                m = deepcopy(m)
+                m['type'] = 'FN'
+                m['score'] = None
+                m['dt_id'] = None
+                m['iou'] = None
+            elif m['type'] == 'FP':
+                continue
+            else:
+                raise ValueError('Invalid match type')
+        matches_filtered.append(m)
+    return matches_filtered
+
+
 class MetricProvider:
-    def __init__(self, eval_data: dict, cocoGt: COCO, cocoDt: COCO):
+    def __init__(self, matches: list, coco_metrics: dict, params: dict, cocoGt: COCO, cocoDt: COCO):
 
         self.cocoGt = cocoGt
 
@@ -47,10 +67,11 @@ class MetricProvider:
         self.cat_names = [cocoGt.cats[cat_id]['name'] for cat_id in self.cat_ids]
 
         # eval_data
-        self.matches = eval_data["matches"]
-        self.coco_stats = eval_data["coco_stats"]
-        self.coco_precision = eval_data["coco_precision"]
-        self.coco_params : Params = eval_data["coco_params"]
+        self.matches = matches
+        self.coco_mAP = coco_metrics["mAP"]
+        self.coco_precision = coco_metrics["precision"]
+        self.iouThrs = params["iouThrs"]
+        self.recThrs = params["recThrs"]
 
         # Matches
         self.tp_matches = [m for m in self.matches if m['type'] == "TP"]
@@ -67,11 +88,11 @@ class MetricProvider:
         self.FN_count = int(self.false_negatives[:,0].sum(0))
 
         # Calibration
-        self.calibration_metrics = CalibrationMetrics(self.tp_matches, self.fp_matches, self.fn_matches, self.coco_params.iouThrs)
+        self.calibration_metrics = CalibrationMetrics(self.tp_matches, self.fp_matches, self.fn_matches, self.iouThrs)
 
     def _init_counts(self):
         cat_ids = self.cat_ids
-        iouThrs = self.coco_params.iouThrs
+        iouThrs = self.iouThrs
         catId2idx = {cat_id: idx for idx, cat_id in enumerate(cat_ids)}
         ious = []
         cats = []
@@ -107,10 +128,13 @@ class MetricProvider:
         fn = self.false_negatives
         confuse_count = len(self.confused_matches)
 
-        mAP = self.coco_stats[0]
+        mAP = self.coco_mAP
         precision = tp / (tp + fp)
         recall = tp / (tp + fn)
-        f1 = 2 * precision * recall / (precision + recall)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            f1 = 2 * precision * recall / (precision + recall)
+        f1[(precision + recall) == 0.] = 0.
         iou = np.mean(self.ious)
         classification_accuracy = self.TP_count / (self.TP_count + confuse_count)
         calibration_score = 1 - self.calibration_metrics.maximum_calibration_error()
@@ -224,10 +248,69 @@ class MetricProvider:
             "count": confused_counts,
             "probability": confused_prob
         })
+    
+    def confidence_score_profile_v0(self):
+        n_gt = len(self.tp_matches) + len(self.fn_matches)
+        matches_sorted = sorted(self.tp_matches + self.fp_matches, key=lambda x: x['score'], reverse=True)
+        scores = np.array([m["score"] for m in matches_sorted])
+        tps = np.array([m["type"] == "TP" for m in matches_sorted])
+        fps = ~tps
+        tps_sum = np.cumsum(tps)
+        fps_sum = np.cumsum(fps)
+        precision = tps_sum / (tps_sum + fps_sum)
+        recall = tps_sum / n_gt
+        f1 = 2 * precision * recall / (precision + recall)
+        return {
+            "scores": scores,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1
+        }
 
-    def iou_histogram(self):
-        iou_hist = np.histogram(self.ious, range=(0.5, 1))
-        return iou_hist
+    def confidence_score_profile(self):
+        iouThrs = self.iouThrs
+        n_gt = len(self.tp_matches) + len(self.fn_matches)
+        matches_sorted = sorted(self.tp_matches + self.fp_matches, key=lambda x: x['score'], reverse=True)
+        scores = np.array([m["score"] for m in matches_sorted])
+        ious = np.array([m["iou"] if m["type"] == "TP" else 0. for m in matches_sorted])
+        iou_idxs = np.searchsorted(iouThrs, ious + np.spacing(1))
+
+        # Check
+        tps = np.array([m["type"] == "TP" for m in matches_sorted])
+        assert np.all(iou_idxs[tps] > 0)
+        assert np.all(iou_idxs[~tps] == 0)
+
+        f1s = []
+        pr_line = np.zeros(len(scores))
+        rc_line = np.zeros(len(scores))
+        for iou_idx, iou_th in enumerate(iouThrs):
+            tps = iou_idxs > iou_idx
+            fps = ~tps
+            tps_sum = np.cumsum(tps)
+            fps_sum = np.cumsum(fps)
+            precision = tps_sum / (tps_sum + fps_sum)
+            recall = tps_sum / n_gt
+            f1 = 2 * precision * recall / (precision + recall)
+            pr_line = pr_line + precision
+            rc_line = rc_line + recall
+            f1s.append(f1)
+        pr_line /= len(iouThrs)
+        rc_line /= len(iouThrs)
+        f1s = np.array(f1s)
+        f1_line = f1s.mean(axis=0)
+        return {
+            "scores": scores,
+            "precision": pr_line,
+            "recall": rc_line,
+            "f1": f1_line,
+        }, f1s
+    
+    def get_f1_optimal_conf(self, score_profile: dict):
+        argmax = score_profile['f1'].argmax()
+        f1_optimal_conf = score_profile['scores'][argmax]
+        best_f1 = score_profile['f1'][argmax]
+        self.f1_optimal_conf = f1_optimal_conf
+        return f1_optimal_conf, best_f1
     
     
 class CalibrationMetrics:
