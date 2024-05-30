@@ -90,6 +90,9 @@ class MetricProvider:
         # Calibration
         self.calibration_metrics = CalibrationMetrics(self.tp_matches, self.fp_matches, self.fn_matches, self.iouThrs)
 
+        # Score profile
+        self._calculate_score_profile()
+
     def _init_counts(self):
         cat_ids = self.cat_ids
         iouThrs = self.iouThrs
@@ -268,6 +271,9 @@ class MetricProvider:
         }
 
     def confidence_score_profile(self):
+        return self.score_profile
+    
+    def _calculate_score_profile(self):
         iouThrs = self.iouThrs
         n_gt = len(self.tp_matches) + len(self.fn_matches)
         matches_sorted = sorted(self.tp_matches + self.fp_matches, key=lambda x: x['score'], reverse=True)
@@ -298,18 +304,18 @@ class MetricProvider:
         rc_line /= len(iouThrs)
         f1s = np.array(f1s)
         f1_line = f1s.mean(axis=0)
-        return {
+        self.score_profile = {
             "scores": scores,
             "precision": pr_line,
             "recall": rc_line,
             "f1": f1_line,
-        }, f1s
+        }
+        self.score_profile_f1s = f1s
     
-    def get_f1_optimal_conf(self, score_profile: dict):
-        argmax = score_profile['f1'].argmax()
-        f1_optimal_conf = score_profile['scores'][argmax]
-        best_f1 = score_profile['f1'][argmax]
-        self.f1_optimal_conf = f1_optimal_conf
+    def get_f1_optimal_conf(self):
+        argmax = self.score_profile['f1'].argmax()
+        f1_optimal_conf = self.score_profile['scores'][argmax]
+        best_f1 = self.score_profile['f1'][argmax]
         return f1_optimal_conf, best_f1
     
     
