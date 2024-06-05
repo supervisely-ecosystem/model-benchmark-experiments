@@ -3,7 +3,7 @@ import os
 from os.path import join as pjoin
 
 
-def sly2coco(sly_project_path: str, dataset_name: str, is_dt_dataset: bool, accepted_shapes: list = None):
+def sly2coco(sly_project_path: str, dataset_name: str, is_dt_dataset: bool, accepted_shapes: list = None, conf_threshold: float = None):
     # Categories
     meta_path = pjoin(sly_project_path, 'meta.json')
     with open(meta_path, 'r') as f:
@@ -38,7 +38,7 @@ def sly2coco(sly_project_path: str, dataset_name: str, is_dt_dataset: bool, acce
         for label in ann['objects']:
             geometry_type = label['geometryType']
             if accepted_shapes is None or geometry_type in accepted_shapes:
-                # TODO: Implement other geometry types (fields: area, bbox, etc)
+                # TODO: Implement other geometry types (calculate area, bbox, etc)
                 assert geometry_type == 'rectangle', "Only 'rectangle' geometry is implemented."
                 class_name = label['classTitle']
                 category_id = cat2id[class_name]
@@ -57,8 +57,12 @@ def sly2coco(sly_project_path: str, dataset_name: str, is_dt_dataset: bool, acce
                 
                 # Extract confidence score from the tag
                 if is_dt_dataset:
-                    conf_tag = [tag for tag in label['tags'] if tag['name'] == 'confidence'][0]
-                    annotation["score"] = float(conf_tag['value'])
+                    conf_tag = [tag for tag in label['tags'] if tag['name'] == 'confidence']
+                    assert len(conf_tag) == 1, f"'confidence' tag is not found."
+                    conf = float(conf_tag[0]['value'])
+                    annotation["score"] = conf
+                    if conf_threshold is not None and conf < conf_threshold:
+                        continue
                 
                 annotations.append(annotation)
                 annotation_id += 1
